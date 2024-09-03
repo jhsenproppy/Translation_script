@@ -6,7 +6,7 @@ import pathlib
 
 
 # TODO CHANGE THIS TO JSON TRANSLATION FILE PATH
-json_dir = r'C:\Users\J-Hsen\Desktop\language translation replace script\package-room.json'
+json_dir = r'C:\Users\J-Hsen\Desktop\Proppy\ProppyHomesPkg\projects\proppy\proppy-homes-pkg\src\assets\translation\parcel-room.json'
 
 # Get current directory that the Python file is running in
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -18,7 +18,7 @@ all_missing_translations = []
 missing_translation = []
 
 # Regex to identify span and label in HTML
-pattern = r'(<(span|label)[^>]*>)(.*?)(<\/\2>)'
+pattern = r'(<(span|label|ion-title)[^>]*>)(.*?)(<\/\2>)'
 # pattern = r'(<(span|label)[^>]*>)([\s\S]*?)(<\/\2>)'
 # Regex to text which has {{}} and text outside. IE: 'test {{hi}} test'
 pattern_with_text = re.compile(r'\{\{.*?\}\}')
@@ -72,7 +72,7 @@ def replace_text(match):
     full_tag = match.group(0)  # Full tag with attributes and content
     # Use BeautifulSoup to extract the content within the tag
     soup = BeautifulSoup(full_tag, 'html.parser')
-    tag = soup.find(['span', 'label'])
+    tag = soup.find(['span', 'label','ion-title'])
     try:
         before, match, after = full_tag.partition(tag.string)
     except Exception as e:
