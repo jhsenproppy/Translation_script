@@ -3,10 +3,22 @@ import json
 from bs4 import BeautifulSoup
 import os
 import pathlib
+import glob
 
+# TODO CHANGE THIS TO FALSE IF YOU DON'T WANT TO ADD THE IMPORTS TO COMPONENTS.TS FILE
+add_comp = True
 
 # TODO CHANGE THIS TO JSON TRANSLATION FILE PATH
-json_dir = r'C:\Users\J-Hsen\Desktop\Proppy\ProppyHomesPkg\projects\proppy\proppy-homes-pkg\src\assets\translation\parcel-room.json'
+json_dir = r'Directory'
+# Get the parent directory of json_dir
+parent_dir = os.path.dirname(json_dir)
+
+# Search for files in the parent directory containing the word "general"
+general_file = glob.glob(os.path.join(parent_dir, '*general*.json'))
+
+# Check if a file is found
+if general_file:
+    general_file_dir = general_file[0]  # Get the first match
 
 # Get current directory that the Python file is running in
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -29,7 +41,7 @@ single_pattern_with_text = re.compile(r'\{.*?\}')
 # Traverse the directory tree and fetch all HTML files
 for dirpath, dirnames, filenames in os.walk(root_dir):
     for file_name in filenames:
-        if file_name.endswith('.html'):
+        if file_name.endswith('.html') or file_name.endswith('component.ts'):
             # Add the full file path to the list
             file_name = (os.path.join(dirpath, file_name)).replace('\\', '/')
             html_files.append(os.path.join(dirpath, file_name))
@@ -124,43 +136,86 @@ for dirpath, dirnames, filenames in os.walk(json_dir):
             file_name = (os.path.join(dirpath, file_name)).replace('\\', '/')
             json_files.append(os.path.join(dirpath, file_name))
 
-            
+# Modify file B by inserting the new import at the top and code block after class declaration
+def update_component_file(file_path, relative_paths, json_filenames, code_to_insert):
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+    
+    # Insert the import statement at the top of the file
+    for i in range(len(relative_paths)):
+        import_statement = f'import * as {json_filenames[i]} from "{relative_paths[i]}";\n'
+        lines.insert(i, import_statement)
+
+    # Find the line that starts with 'export class FacilitiesComponent implements OnInit {'
+    for i, line in enumerate(lines):
+        if 'export class' in line:
+            lines.insert(i + 1, code_to_insert)  # Insert the code block after the class declaration
+            break
+    
+    # Write the updated content back to the file
+    with open(file_path, 'w') as file:
+        file.writelines(lines)       
 dictionary = {}
 json_file = os.path.splitext(os.path.basename(json_dir))[0].split('.')[0]
 for html_file_path in html_files:
-    missing_translation = []
-    with open(json_dir, 'r', encoding='utf-8') as f:
-        translations = json.load(f)
-    if len(missing_translation) == 0:
-        path = str(os.path.splitext(html_file_path)[0])
-        parts = path.replace('\\', '/').split('/')
-        # Get the last num_parts components
-        last_parts = parts[-4:]
-        # Join the last components back into a path
-        pathText = '/'.join(last_parts)
-        missing_translation.append(pathText)
-    # Example HTML (you would read this from a file)
-    with open(html_file_path, 'r', encoding='utf-8') as f:
-        html_content = f.read()
+    if "component.ts" in html_file_path:
+        json_path = os.path.relpath(json_dir, os.path.dirname(html_file_path))
+        general_path = os.path.relpath(general_file_dir, os.path.dirname(html_file_path))
+
+        json_path = json_path.replace("\\", "/")  # Convert to Unix-style path for TypeScript
+        general_path = general_path.replace("\\", "/")  # Convert to Unix-style path for TypeScript
+        relative_paths = [json_path,general_path]
+
+        # Extract JSON filename and replace hyphens with underscores
+        json_filename = os.path.basename(json_path).replace('-', '_').replace('.json', '').replace('component','')
+        general_json_filename = "general_json"
+        json_filenames = [json_filename,general_json_filename]
+        code_block = f'''
+//Dictionary mapping all english translations to their keys
+  general_json = JSON.parse(JSON.stringify(general_json))
+  {json_filename}_json = JSON.parse(JSON.stringify({json_filename}))
+//  translationMap = Object.keys(this.{json_filename}_json).reduce((map, key) => {{
+//    const item = this.{json_filename}_json[key];
+//    map[item.en] = item.identity;
+//    return map;
+//    }}, {{}} as any);
+        '''
+        if add_comp:
+            update_component_file(html_file_path, relative_paths, json_filenames, code_block)
+    else:
+        missing_translation = []
+        with open(json_dir, 'r', encoding='utf-8') as f:
+            translations = json.load(f)
+        if len(missing_translation) == 0:
+            path = str(os.path.splitext(html_file_path)[0])
+            parts = path.replace('\\', '/').split('/')
+            # Get the last num_parts components
+            last_parts = parts[-4:]
+            # Join the last components back into a path
+            pathText = '/'.join(last_parts)
+            missing_translation.append(pathText)
+        # Example HTML (you would read this from a file)
+        with open(html_file_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
 
 
-    en_to_identity = {v['en'].strip(): k for k, v in translations.items()}
-    modified_html = re.sub(pattern, replace_text, html_content, flags=re.DOTALL)
-    first_element = missing_translation[0]
-    rest_of_list = missing_translation[1:]
+        en_to_identity = {v['en'].strip(): k for k, v in translations.items()}
+        modified_html = re.sub(pattern, replace_text, html_content, flags=re.DOTALL)
+        first_element = missing_translation[0]
+        rest_of_list = missing_translation[1:]
 
-    # Sort the rest of the list
-    rest_of_list_sorted = sorted(rest_of_list)
+        # Sort the rest of the list
+        rest_of_list_sorted = sorted(rest_of_list)
 
-    # Combine the first element with the sorted rest
-    sorted_missing_translations = [first_element] + rest_of_list_sorted
-    all_missing_translations.append(sorted_missing_translations)
-    # Generate the output file path based on the HTML file path
-    output_file_path = os.path.splitext(html_file_path)[0] + '_modified.html'
-    # Write the modified HTML to the new file
-    # TODO Change html_file_path to output_file_path if you do not want to directly replace the file
-    with open(html_file_path, 'w', encoding='utf-8') as file:
-        file.write(modified_html)
+        # Combine the first element with the sorted rest
+        sorted_missing_translations = [first_element] + rest_of_list_sorted
+        all_missing_translations.append(sorted_missing_translations)
+        # Generate the output file path based on the HTML file path
+        output_file_path = os.path.splitext(html_file_path)[0] + '_modified.html'
+        # Write the modified HTML to the new file
+        # TODO Change html_file_path to output_file_path if you do not want to directly replace the file
+        with open(html_file_path, 'w', encoding='utf-8') as file:
+            file.write(modified_html)
     
 
 # Using dictionary keys to filter unique strings
